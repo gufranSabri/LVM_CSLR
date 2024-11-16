@@ -28,21 +28,18 @@ class CLIP_Img_Encoder(nn.Module):
         self.freeze = freeze
         self.model, _ = clip.load(model_name, jit=False)
 
-        if hidden_size != 512:
-            self.fc = nn.Sequential(
-                nn.Linear(512, hidden_size),
-                nn.ReLU()
-            )
+        if freeze:
+            for param in self.model.parameters():
+                param.requires_grad = False
+
+        self.fc = nn.Sequential(
+            nn.Linear(512, hidden_size),
+            nn.ReLU()
+        )
     
     def forward(self, x):
-        if self.freeze:
-            with torch.no_grad():
-                x = self.model.encode_image(x).float()
-        else:
-            x = self.model.encode_image(x).float()
-
-        if hasattr(self, 'fc'):
-            x = self.fc(x)
+        x = self.model.encode_image(x).float()
+        x = self.fc(x)
 
         return x # [batch_size, 512]
 
@@ -68,7 +65,7 @@ class CLIP_Vid_Encoder(nn.Module):
             transforms.Resize((224, 224)),
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-        ]) 
+        ])
 
         self.aggregation_method = aggregation_method
         if aggregation_method == aggregation_settings["AGG_ATTN"]:
@@ -116,7 +113,7 @@ class CLIP_Vid_Encoder(nn.Module):
         return torch.stack(res, dim=0).to(device) # [batch_size, 512]
 
 def test():
-    data_gen = data_generator_ArCSL("/Users/gufran/Developer/Projects/AI/LVM_CSLR/data/ArCSL", batch_size=2)
+    data_gen = data_generator_ArCSL("./data/ArCSL", batch_size=2)
     model = CLIP_Vid_Encoder(hidden_size=256).to("mps")
     for batch in data_gen:
         frames = batch['frames']

@@ -31,7 +31,7 @@ def total_vids_len(phase="train"):
     if phase == "test":
         return 500*2
 
-def data_generator_ArCSL(data_path, batch_size=6, phase="train"):
+def data_generator_ArCSL(data_path, batch_size=6, phase="train", return_str = False):
     vids = []
     frames_path = os.path.join(data_path, "1st_500_frames")
     
@@ -52,8 +52,13 @@ def data_generator_ArCSL(data_path, batch_size=6, phase="train"):
     with open(ground_truth_gloss_path, 'r') as f:
         labels = f.readlines()
         labels = [label.split(" ") for label in labels]
+
         for i, label in enumerate(labels):
-            labels[i] = [gloss_dict[l.replace("\n", "")] for l in label]
+            labels[i] = [l.replace("\n", "") for l in label]
+        
+        if not return_str:
+            for i, label in enumerate(labels):
+                labels[i] = [gloss_dict[l.replace("\n", "")] for l in label]
 
     batch_num = 0
     for i in range(0, len(vids), batch_size):
@@ -77,7 +82,8 @@ def data_generator_ArCSL(data_path, batch_size=6, phase="train"):
 
 if __name__ == "__main__":
     data_path = "./data/ArCSL"
-    d = data_generator_ArCSL(data_path)
+    d = data_generator_ArCSL(data_path, return_str=True)
 
     for batch in d:
-        print(batch["frames"][0])
+        print(batch["y"])
+        break

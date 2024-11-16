@@ -16,21 +16,31 @@ class CLIP_Text_Encoder(nn.Module):
         self.model = pt_multilingual_clip.MultilingualCLIP.from_pretrained(model_name)
         self.tokenizer = transformers.AutoTokenizer.from_pretrained(model_name)
 
-        if hidden_size != 768:
-            self.fc = nn.Sequential(
-                nn.Linear(768, hidden_size),
-                nn.ReLU()
-            )
+        if freeze:
+            for param in self.model.parameters():
+                param.requires_grad = False
+        
+        self.fc = nn.Sequential(
+            nn.Linear(512, hidden_size),
+            nn.ReLU()
+        )
     
-    def forward(self, x):
-        if self.freeze:
-            with torch.no_grad():
-                x = self.model.forward(x, self.tokenizer).float()
-        else:
-            x = self.model.forward(x, self.tokenizer).float()
+    def custom_forward(self, x, device):
+        res = []
+        for text in x:
+            txt_tok = self.tokenizer(text, padding=True, return_tensors='pt').to(device)
+            embs = self.model.transformer(**txt_tok)[0]
+            att = txt_tok['attention_mask']
+            embs = (embs * att.unsqueeze(2)).sum(dim=1) / att.sum(dim=1)[:, None]
+            embs = self.model.LinearTransformation(embs).squeeze(0)
+            res.append(embs)
 
-        if hasattr(self, 'fc'):
-            x = self.fc(x)
+        res = torch.stack(res, dim=0)
+        return res
+
+    def forward(self, x, device):
+        x = self.custom_forward(x, device)
+        x = self.fc(x)
 
         return x
     
@@ -41,11 +51,11 @@ def test():
         'Wie leben Eisbären in der Antarktis?',
         'Вы знали, что все белые медведи левши?'
     ]
-    model_name = 'M-CLIP/XLM-Roberta-Large-Vit-L-14'
+    model_name = 'M-CLIP/XLM-Roberta-Large-Vit-B-32'
 
-    model = CLIP_Text_Encoder(model_name, hidden_size=256, freeze=False)
-    for text in texts:
-        print(model(text).shape)
+    model = CLIP_Text_Encoder(model_name, hidden_size=256, freeze=False).to("mps")
+    print(model(texts, "mps").shape)
+        
 
 if __name__ == "__main__":
     test()
