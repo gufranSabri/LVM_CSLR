@@ -9,6 +9,7 @@ from commons.biLSTM import BiLSTMLayer
 from utils.data_generator_ArCSL import data_generator_ArCSL
 import clip
 from PIL import Image
+from torch.nn import MultiheadAttention
 
 import warnings
 warnings.filterwarnings("ignore")

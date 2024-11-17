@@ -9,6 +9,7 @@ import torch
 import torch.nn as nn
 from CLIP.sign_clip import SignCLIP, test
 from utils.data_generator_ArCSL import *
+from utils.scheduler import LinearDecayLR
 from torch.utils.tensorboard import SummaryWriter
 
 aggregation_settings = {
@@ -64,35 +65,36 @@ def main(args):
             aggregation_method=aggregation_settings[args.agg_method]
         ).to(args.device)
     
-    writer = SummaryWriter(f"runs/SignCLIP_{args.model}_{args.lr}_{args.hidden_size}_f{args.freeze}_{args.agg_method}_b{args.batch_size}_{datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}")
+    date = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+    model_name = f"SignCLIP_{args.model}_{args.lr}_{args.hidden_size}_f{args.freeze_clip_modules}_{args.agg_method}_b{args.batch_size}_{date}"
+    writer = SummaryWriter(f"runs/{model_name}")
 
     if not os.path.exists("./models"):
         os.mkdir("./models")
-
-    if not os.path.exists("./models"):
-        os.mkdir("./models/SignCLIP")
+        os.mkdir("./models/SignCLIP")        
 
     model = train(model, args, writer)
-    model_path = f"./models/SignCLIP/SignCLIP_{args.model}_{datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}.tar"
+    model_path = f"./models/SignCLIP/{model_name}.tar"
     torch.save({
         "vid_encoder":model.video_encoder.state_dict(),
         "text_encoder":model.text_encoder.state_dict(),
         "img_projection":model.img_projection.state_dict(),
         "text_projection":model.text_projection.state_dict(),
         
-    },model_path)
+    }, model_path)
 
 def train(model, args, writer):
     criterion = nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=float(args.lr))
-
+    
+    lr_scheduler=LinearDecayLR(optimizer, int(args.epochs), int(int(args.epochs)*0.75))
     for epoch in range(int(args.epochs)):
         data_gen = data_generator_ArCSL(args.data_path, batch_size=args.batch_size, return_str=True)
         num_batches = total_vids_len("train") // args.batch_size
         training_loss = 0
 
         model.train()
-        for batch in tqdm(data_gen, desc=f"Epoch: {epoch+1}", total=num_batches):
+        for _, batch in enumerate(tqdm(data_gen, desc=f"Epoch: {epoch+1}", total=num_batches)):
             frames = batch['frames']
             y = [" ".join(text) for text in batch['y']]
 
@@ -107,16 +109,19 @@ def train(model, args, writer):
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-
+            
             training_loss += loss.item()
 
-        writer.add_scalar("Loss/train", training_loss/num_batches, epoch)
+        writer.add_scalar("Loss/train", training_loss / num_batches, epoch)
+        writer.add_scalar("Learning_Rate", {lr_scheduler.get_lr()}, epoch)
 
-        print(f"Epoch {epoch+1}:")
-        print(f"  Training Loss: {training_loss/num_batches:.4f}")
-        validate(model, args, writer, epoch)
+        print(f"Training Loss: {training_loss / num_batches:.4f}")
+        print(f"Learning Rate: {lr_scheduler.get_lr()}\n")
 
-        print()
+        lr_scheduler.step()
+
+        if epoch % 10 == 0:
+            validate(model, args, writer, epoch)
     
     return model
 
@@ -143,7 +148,7 @@ def validate(model, args, writer, epoch):
 
         writer.add_scalar("Loss/Validation", running_loss/num_batches, epoch)
 
-    print(f"  Validation Loss: {running_loss/num_batches:.4f}")
+    print(f"Validation Loss: {running_loss/num_batches:.4f}")
 
 def compute_metrics(embeddings1, embeddings2, ks=[1, 5, 10]):
     similarity_matrix = torch.matmul(embeddings1, embeddings2.T)
@@ -172,10 +177,10 @@ if __name__ == "__main__":
     parser.add_argument('--hidden_size', dest='hidden_size', default="256")
     parser.add_argument('--freeze_clip_modules', dest='freeze_clip_modules', default="1")
     parser.add_argument('--lr', dest='lr', default="0.001")
-    parser.add_argument('--agg_method', dest='agg_method', default="AGG_AVG")
-    parser.add_argument('--device',dest='device', default='mps')
-    parser.add_argument('--epochs',dest='epochs', default="40")
-    parser.add_argument('--batch_size',dest='batch_size', default=2)
+    parser.add_argument('--agg_method', dest='agg_method', default="AGG_ATTN")
+    parser.add_argument('--device',dest='device', default='cuda')
+    parser.add_argument('--epochs',dest='epochs', default="20")
+    parser.add_argument('--batch_size',dest='batch_size', default=4)
     args = parser.parse_args()
 
     main(args)
