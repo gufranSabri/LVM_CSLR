@@ -113,14 +113,14 @@ def train(model, args, writer):
             training_loss += loss.item()
 
         writer.add_scalar("Loss/train", training_loss / num_batches, epoch)
-        writer.add_scalar("Learning_Rate", {lr_scheduler.get_lr()}, epoch)
+        writer.add_scalar("Learning_Rate", lr_scheduler.get_lr(), epoch)
 
         print(f"Training Loss: {training_loss / num_batches:.4f}")
         print(f"Learning Rate: {lr_scheduler.get_lr()}\n")
 
         lr_scheduler.step()
 
-        if epoch % 10 == 0:
+        if (epoch+1) % 10 == 0:
             validate(model, args, writer, epoch)
     
     return model
@@ -140,6 +140,7 @@ def validate(model, args, writer, epoch):
             video_embeddings, text_embeddings = model(frames, y, args.device)
             similarity_matrix = torch.matmul(video_embeddings, text_embeddings.T)
             labels = torch.arange(similarity_matrix.size(0)).to(args.device)
+
             loss_i = criterion(similarity_matrix, labels)  # Predicting text from video
             loss_t = criterion(similarity_matrix.T, labels)  # Predicting video from text
             loss = (loss_i + loss_t) / 2  # Bidirectional loss
@@ -176,10 +177,10 @@ if __name__ == "__main__":
     parser.add_argument('--t1d_conv_layers', dest='t1d_conv_layers', default="2")
     parser.add_argument('--hidden_size', dest='hidden_size', default="256")
     parser.add_argument('--freeze_clip_modules', dest='freeze_clip_modules', default="1")
-    parser.add_argument('--lr', dest='lr', default="0.001")
+    parser.add_argument('--lr', dest='lr', default="0.0001")
     parser.add_argument('--agg_method', dest='agg_method', default="AGG_ATTN")
-    parser.add_argument('--device',dest='device', default='cuda')
-    parser.add_argument('--epochs',dest='epochs', default="20")
+    parser.add_argument('--device',dest='device', default='mps')
+    parser.add_argument('--epochs',dest='epochs', default="50")
     parser.add_argument('--batch_size',dest='batch_size', default=4)
     args = parser.parse_args()
 

@@ -31,7 +31,7 @@ def total_vids_len(phase="train"):
     if phase == "test":
         return 500*2
 
-def data_generator_ArCSL(data_path, batch_size=6, phase="train", return_str = False):
+def data_generator_ArCSL(data_path, batch_size=16, phase="test", return_str = False):
     vids = []
     frames_path = os.path.join(data_path, "1st_500_frames")
     
@@ -45,6 +45,7 @@ def data_generator_ArCSL(data_path, batch_size=6, phase="train", return_str = Fa
     for signer in signers:
         for sign in signs:
             vids.append((signer,sign))
+
     random.shuffle(vids)
 
     gloss_dict = get_gloss_dict(data_path)
@@ -60,15 +61,15 @@ def data_generator_ArCSL(data_path, batch_size=6, phase="train", return_str = Fa
             for i, label in enumerate(labels):
                 labels[i] = [gloss_dict[l.replace("\n", "")] for l in label]
 
-    batch_num = 0
     for i in range(0, len(vids), batch_size):
-        batch_num+=1
         batch = vids[i:i+batch_size]
-
         y = [labels[int(b[1])-1] for b in batch]
+        
         frames_paths = [os.path.join(frames_path, signer, sign) for signer, sign in batch]
         frames = [[] for _ in range(batch_size)]
-    
+
+        if len(frames_paths) < batch_size:
+            break
         for j in range(batch_size):
             for frame in os.listdir(frames_paths[j]):
                 frames[j].append(os.path.join(frames_paths[j], frame))
@@ -85,5 +86,4 @@ if __name__ == "__main__":
     d = data_generator_ArCSL(data_path, return_str=True)
 
     for batch in d:
-        print(batch["y"])
-        break
+        pass

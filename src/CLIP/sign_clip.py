@@ -45,8 +45,11 @@ class SignCLIP(nn.Module):
         video_embeddings = self.video_encoder(video_frames, device)  # [batch_size, hidden_size]
         text_embeddings = self.text_encoder(text_inputs, device)  # [batch_size, hidden_size]
         
-        video_embeddings = F.normalize(self.img_projection(video_embeddings), p=2, dim=1)  # [batch_size, hidden_size]
-        text_embeddings = F.normalize(self.text_projection(text_embeddings), p=2, dim=1)  # [batch_size, hidden_size]
+        # video_embeddings = F.normalize(self.img_projection(video_embeddings), p=2, dim=1)  # [batch_size, hidden_size]
+        # text_embeddings = F.normalize(self.text_projection(text_embeddings), p=2, dim=1)  # [batch_size, hidden_size]
+
+        video_embeddings = self.img_projection(video_embeddings) # [batch_size, hidden_size]
+        text_embeddings = self.text_projection(text_embeddings)  # [batch_size, hidden_size]
 
         return video_embeddings, text_embeddings
 
